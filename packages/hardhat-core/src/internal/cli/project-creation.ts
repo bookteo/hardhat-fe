@@ -5,6 +5,8 @@ import path from "path";
 
 import { HARDHAT_NAME } from "../constants";
 import { DEFAULT_SOLC_VERSION } from "../core/config/default-config";
+import { HardhatError } from "../core/errors";
+import { ERRORS } from "../core/errors-list";
 import { getRecommendedGitIgnore } from "../core/project-structure";
 import {
   hasConsentedTelemetry,
@@ -15,9 +17,16 @@ import { getPackageJson, getPackageRoot } from "../util/packageInfo";
 
 import { emoji } from "./emoji";
 
-const CREATE_SAMPLE_PROJECT_ACTION = "Create a sample project";
-const CREATE_EMPTY_HARDHAT_CONFIG_ACTION = "Create an empty hardhat.config.js";
-const QUIT_ACTION = "Quit";
+enum Action {
+  CREATE_BASIC_SAMPLE_PROJECT_ACTION = "Create a basic sample project",
+  CREATE_ADVANCED_SAMPLE_PROJECT_ACTION = "Create an advanced sample project",
+  CREATE_EMPTY_HARDHAT_CONFIG_ACTION = "Create an empty hardhat.config.js",
+  QUIT_ACTION = "Quit",
+}
+
+type SampleProjectTypeCreationAction =
+  | Action.CREATE_BASIC_SAMPLE_PROJECT_ACTION
+  | Action.CREATE_ADVANCED_SAMPLE_PROJECT_ACTION;
 
 interface Dependencies {
   [name: string]: string;
@@ -25,12 +34,43 @@ interface Dependencies {
 
 const HARDHAT_PACKAGE_NAME = "hardhat";
 
-const SAMPLE_PROJECT_DEPENDENCIES: Dependencies = {
+const BASIC_SAMPLE_PROJECT_DEPENDENCIES: Dependencies = {
   "@nomiclabs/hardhat-waffle": "^2.0.0",
   "ethereum-waffle": "^3.0.0",
   chai: "^4.2.0",
   "@nomiclabs/hardhat-ethers": "^2.0.0",
   ethers: "^5.0.0",
+};
+
+const ADVANCED_SAMPLE_PROJECT_DEPENDENCIES: Dependencies = {
+  ...BASIC_SAMPLE_PROJECT_DEPENDENCIES,
+  "@nomiclabs/hardhat-etherscan": "^2.1.3",
+  eslint: "^7.29.0",
+  "eslint-config-prettier": "^8.3.0",
+  "eslint-config-standard": "^16.0.3",
+  "eslint-plugin-import": "^2.23.4",
+  "eslint-plugin-node": "^11.1.0",
+  "eslint-plugin-prettier": "^3.4.0",
+  "eslint-plugin-promise": "^5.1.0",
+  "hardhat-gas-reporter": "^1.0.4",
+  prettier: "^2.3.2",
+  "prettier-plugin-solidity": "^1.0.0-beta.13",
+  solhint: "^3.3.6",
+  "solidity-coverage": "^0.7.16",
+};
+
+const ADVANCED_TYPESCRIPT_SAMPLE_PROJECT_DEPENDENCIES: Dependencies = {
+  ...ADVANCED_SAMPLE_PROJECT_DEPENDENCIES,
+  typechain: "^5.1.1",
+  typescript: "^4.3.5",
+  "@typechain/hardhat": "^2.1.1",
+};
+
+const SAMPLE_PROJECT_DEPENDENCIES: {
+  [K in SampleProjectTypeCreationAction]: Dependencies;
+} = {
+  [Action.CREATE_BASIC_SAMPLE_PROJECT_ACTION]: BASIC_SAMPLE_PROJECT_DEPENDENCIES,
+  [Action.CREATE_ADVANCED_SAMPLE_PROJECT_ACTION]: ADVANCED_SAMPLE_PROJECT_DEPENDENCIES,
 };
 
 const TELEMETRY_CONSENT_TIMEOUT = 10000;
@@ -88,11 +128,24 @@ async function printWelcomeMessage() {
   );
 }
 
-async function copySampleProject(projectRoot: string) {
+async function copySampleProject(
+  projectRoot: string,
+  projectType: SampleProjectTypeCreationAction
+) {
   const packageRoot = getPackageRoot();
 
   await fsExtra.ensureDir(projectRoot);
-  await fsExtra.copy(path.join(packageRoot, "sample-project"), projectRoot);
+  await fsExtra.copy(
+    path.join(packageRoot, "sample-projects/basic"),
+    projectRoot
+  );
+
+  if (projectType === Action.CREATE_ADVANCED_SAMPLE_PROJECT_ACTION) {
+    await fsExtra.copy(
+      path.join(packageRoot, "sample-projects/advanced"),
+      projectRoot
+    );
+  }
 
   // This is just in case we have been using the sample project for dev/testing
   await removeTempFilesIfPresent(projectRoot);
@@ -114,7 +167,7 @@ ${content}`;
   await fsExtra.writeFile(gitIgnorePath, content);
 }
 
-function printSuggestedCommands() {
+function printSuggestedCommands(projectType: SampleProjectTypeCreationAction) {
   console.log(`Try running some of the following tasks:`);
   console.log(`  npx hardhat accounts`);
   console.log(`  npx hardhat compile`);
@@ -122,15 +175,25 @@ function printSuggestedCommands() {
   console.log(`  npx hardhat node`);
   console.log(`  node scripts/sample-script.js`);
   console.log(`  npx hardhat help`);
+  if (projectType === Action.CREATE_ADVANCED_SAMPLE_PROJECT_ACTION) {
+    console.log(`  REPORT_GAS=true npx hardhat test`);
+    console.log(`  npx hardhat coverage`);
+    console.log(`  npx eslint '**'`);
+    console.log(`  npx eslint '**' --fix`);
+    console.log(`  npx solhint '**/*.sol'`);
+    console.log(`  npx solhint '**/*.sol' --fix`);
+  }
 }
 
-async function printRecommendedDepsInstallationInstructions() {
+async function printRecommendedDepsInstallationInstructions(
+  projectType: SampleProjectTypeCreationAction
+) {
   console.log(
     `You need to install these dependencies to run the sample project:`
   );
 
   const cmd = await getRecommendedDependenciesInstallationCommand(
-    await getDependencies()
+    await getDependencies(projectType)
   );
 
   console.log(`  ${cmd.join(" ")}`);
@@ -150,7 +213,7 @@ module.exports = {
   );
 }
 
-async function getAction() {
+async function getAction(): Promise<Action> {
   const { default: enquirer } = await import("enquirer");
   try {
     const actionResponse = await enquirer.prompt<{ action: string }>([
@@ -159,26 +222,22 @@ async function getAction() {
         type: "select",
         message: "What do you want to do?",
         initial: 0,
-        choices: [
-          {
-            name: CREATE_SAMPLE_PROJECT_ACTION,
-            message: CREATE_SAMPLE_PROJECT_ACTION,
-            value: CREATE_SAMPLE_PROJECT_ACTION,
-          },
-          {
-            name: CREATE_EMPTY_HARDHAT_CONFIG_ACTION,
-            message: CREATE_EMPTY_HARDHAT_CONFIG_ACTION,
-            value: CREATE_EMPTY_HARDHAT_CONFIG_ACTION,
-          },
-          { name: QUIT_ACTION, message: QUIT_ACTION, value: QUIT_ACTION },
-        ],
+        choices: Object.values(Action).map((a: Action) => {
+          return { name: a, message: a, value: a };
+        }),
       },
     ]);
 
-    return actionResponse.action;
+    if ((Object.values(Action) as string[]).includes(actionResponse.action)) {
+      return actionResponse.action as Action;
+    } else {
+      throw new HardhatError(ERRORS.GENERAL.UNSUPPORTED_OPERATION, {
+        operation: `Responding with "${actionResponse.action}" to the project initialization wizard`,
+      });
+    }
   } catch (e) {
     if (e === "") {
-      return QUIT_ACTION;
+      return Action.QUIT_ACTION;
     }
 
     // eslint-disable-next-line @nomiclabs/only-hardhat-error
@@ -204,7 +263,7 @@ export async function createProject() {
 
   const action = await getAction();
 
-  if (action === QUIT_ACTION) {
+  if (action === Action.QUIT_ACTION) {
     return;
   }
 
@@ -212,7 +271,7 @@ export async function createProject() {
     await createPackageJson();
   }
 
-  if (action === CREATE_EMPTY_HARDHAT_CONFIG_ACTION) {
+  if (action === Action.CREATE_EMPTY_HARDHAT_CONFIG_ACTION) {
     await writeEmptyHardhatConfig();
     console.log(
       `${emoji("✨ ")}${chalk.cyan(`Config file created`)}${emoji(" ✨")}`
@@ -263,7 +322,7 @@ export async function createProject() {
 
   const { projectRoot, shouldAddGitIgnore } = responses;
 
-  await copySampleProject(projectRoot);
+  await copySampleProject(projectRoot, action);
 
   if (shouldAddGitIgnore) {
     await addGitIgnore(projectRoot);
@@ -280,7 +339,10 @@ export async function createProject() {
   let shouldShowInstallationInstructions = true;
 
   if (await canInstallRecommendedDeps()) {
-    const dependencies = await getDependencies();
+    const dependencies = await getDependencies(
+      action as SampleProjectTypeCreationAction /* type cast feels okay here
+      because we already returned from this function if it isn't valid. */
+    );
 
     const recommendedDeps = Object.keys(dependencies);
 
@@ -317,7 +379,7 @@ export async function createProject() {
 
   if (shouldShowInstallationInstructions) {
     console.log(``);
-    await printRecommendedDepsInstallationInstructions();
+    await printRecommendedDepsInstallationInstructions(action);
   }
 
   console.log(
@@ -326,7 +388,7 @@ export async function createProject() {
 
   console.log(``);
 
-  printSuggestedCommands();
+  printSuggestedCommands(action);
 }
 
 function createConfirmationPrompt(name: string, message: string) {
@@ -415,7 +477,7 @@ async function confirmRecommendedDepsInstallation(
     responses = await enquirer.prompt<typeof responses>([
       createConfirmationPrompt(
         "shouldInstallPlugin",
-        `Do you want to install the sample project's dependencies with ${packageManager} (${Object.keys(
+        `Do you want to install this sample project's dependencies with ${packageManager} (${Object.keys(
           depsToInstall
         ).join(" ")})?`
       ),
@@ -504,9 +566,9 @@ async function getRecommendedDependenciesInstallationCommand(
   return ["npm", "install", "--save-dev", ...deps];
 }
 
-async function getDependencies() {
+async function getDependencies(projectType: SampleProjectTypeCreationAction) {
   return {
     [HARDHAT_PACKAGE_NAME]: `^${(await getPackageJson()).version}`,
-    ...SAMPLE_PROJECT_DEPENDENCIES,
+    ...SAMPLE_PROJECT_DEPENDENCIES[projectType],
   };
 }

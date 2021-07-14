@@ -1,15 +1,10 @@
 import fsExtra from "fs-extra";
-import { NomicLabsHardhatPluginError } from "hardhat/plugins";
 import { Artifact, Artifacts, ProjectPathsConfig } from "hardhat/types";
 import { localPathToSourceName } from "hardhat/utils/source-names";
 import path from "path";
-
 import { FeConfig } from "./types";
+import { FE_BINARY_PATH } from "./fe-binary-path.ts";
 
-//const VYPER_DOCKER_REPOSITORY = "vyperlang/vyper";
-//const LAST_VYPER_VERSION_USED_FILENAME = "last-vyper-version-used.txt";
-//const VYPER_DOCKER_IMAGES_LAST_UPDATE_CHECK_FILE = "vyper-docker-updates.json";
-//const CHECK_UPDATES_INTERVAL = 3600000;
 
 const ARTIFACT_FORMAT_VERSION = "hh-vyper-artifact-1";
 
@@ -18,16 +13,6 @@ export async function compile(
   paths: ProjectPathsConfig,
   artifacts: Artifacts
 ) {
-  const feVersion = feConfig.version;
-
-  const dockerImage = {
-    repository: VYPER_DOCKER_REPOSITORY,
-    tag: vyperVersion,
-  };
-
-
-
-  let someContractFailed = false;
 
   for (const file of files) {
     const pathFromCWD = path.relative(process.cwd(), file);
@@ -40,47 +25,27 @@ export async function compile(
 
     console.log("Compiling", pathFromCWD);
 
-    const processResult = await handleCommonErrors(
-      compileWithDocker(file, docker, dockerImage, paths)
-    );
+  
+    compileWithDocker(file, docker, dockerImage, paths)
 
-    if (processResult.statusCode === 0) {
-      const vyperOutput = JSON.parse(processResult.stdout.toString("utf8"))[
-        pathFromSources
-      ];
+    const vyperOutput = JSON.parse(processResult.stdout.toString("utf8"))[
+      pathFromSources
+    ];
 
-      const sourceName = await localPathToSourceName(paths.root, file);
-      const artifact = getArtifactFromVyperOutput(sourceName, vyperOutput);
+    const sourceName = await localPathToSourceName(paths.root, file);
+    const artifact = getArtifactFromVyperOutput(sourceName, vyperOutput);
 
-      await artifacts.saveArtifactAndDebugFile(artifact);
-    } else {
-      console.error(processResult.stderr.toString("utf8").trim(), "\n");
-
-      someContractFailed = true;
-    }
+    await artifacts.saveArtifactAndDebugFile(artifact);
+    
   }
 
-  if (someContractFailed) {
-    throw new NomicLabsHardhatPluginError(
-      "@nomiclabs/hardhat-vyper",
-      "Compilation failed"
-    );
-  }
-
-  await saveLastVyperVersionUsed(vyperVersion, paths);
 }
 
 async function isAlreadyCompiled(
   sourceFile: string,
   paths: ProjectPathsConfig,
-  vyperVersion: string,
   sources: string[]
 ) {
-  const lastVyperVersionUsed = await getLastVyperVersionUsed(paths);
-  if (lastVyperVersionUsed !== vyperVersion) {
-    return false;
-  }
-
   const contractName = pathToContractName(sourceFile);
   const artifactPath = path.join(paths.artifacts, `${contractName}.json`);
   if (!(await fsExtra.pathExists(artifactPath))) {
@@ -96,14 +61,6 @@ async function isAlreadyCompiled(
   return lastSourcesCtime < artifactCtime;
 }
 
-async function getVyperSources(paths: ProjectPathsConfig) {
-  const glob = await import("glob");
-  const vyFiles = glob.sync(path.join(paths.sources, "**", "*.vy"));
-  const vpyFiles = glob.sync(path.join(paths.sources, "**", "*.v.py"));
-
-  return [...vyFiles, ...vpyFiles];
-}
-
 function pathToContractName(file: string) {
   const sourceName = path.basename(file);
   return sourceName.substring(0, sourceName.indexOf("."));
@@ -113,7 +70,7 @@ function getArtifactFromVyperOutput(sourceName: string, output: any): Artifact {
   const contractName = pathToContractName(sourceName);
 
   return {
-    _format: ARTIFACT_FORMAT_VERSION,
+    _format: ARTIFACT_FORMAT_VERSION,   //genau anschauen wie das artifact formatiert wird von vyper
     contractName,
     sourceName,
     abi: output.abi,
@@ -132,24 +89,6 @@ function add0xPrefixIfNecessary(hex: string): string {
   }
 
   return `0x${hex}`;
-}
-
-async function getLastVyperVersionUsed(paths: ProjectPathsConfig) {
-  const filePath = path.join(paths.cache, LAST_VYPER_VERSION_USED_FILENAME);
-  if (!(await fsExtra.pathExists(filePath))) {
-    return undefined;
-  }
-
-  return fsExtra.readFile(filePath, "utf8");
-}
-
-async function saveLastVyperVersionUsed(
-  version: string,
-  paths: ProjectPathsConfig
-) {
-  const filePath = path.join(paths.cache, LAST_VYPER_VERSION_USED_FILENAME);
-  await fsExtra.ensureDir(path.dirname(filePath));
-  return fsExtra.writeFile(filePath, version, "utf8");
 }
 
 
@@ -173,4 +112,3 @@ async function compileWithDocker(
     }
   );
 }
-

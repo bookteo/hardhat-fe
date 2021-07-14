@@ -1,8 +1,9 @@
 require("../../../src/index");
 
 module.exports = {
-  vyper: {
-    version: "0.1.0b10",
+  fe: {
+    binary: "/Users/leo/Downloads/Fe/fe_mac",
   },
   solidity: "0.5.15",
+
 };

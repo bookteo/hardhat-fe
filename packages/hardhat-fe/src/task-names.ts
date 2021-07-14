@@ -1,1 +1,1 @@
-export const TASK_COMPILE_VYPER = "compile:fe";
+export const TASK_COMPILE_FE = "compile:fe";

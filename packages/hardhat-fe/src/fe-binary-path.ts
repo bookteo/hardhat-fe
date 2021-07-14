@@ -1,0 +1,1 @@
+export const FE_BINARY_PATH = "/Users/leo/Downloads/Fe/fe_mac";

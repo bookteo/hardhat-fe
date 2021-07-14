@@ -1,9 +1,9 @@
 {
-  "name": "@nomiclabs/hardhat-vyper",
-  "version": "2.0.1",
-  "description": "Hardhat plugin to develop smart contracts in Vyper",
+  "name": "@nomiclabs/hardhat-fe",
+  "version": "0.0.1",
+  "description": "Hardhat plugin to develop smart contracts in Fe",
   "repository": "github:nomiclabs/hardhat",
-  "homepage": "https://github.com/nomiclabs/hardhat/tree/master/packages/hardhat-vyper",
+  "homepage": "https://github.com/nomiclabs/hardhat/tree/master/packages/hardhat-fe",
   "author": "Nomic Labs LLC",
   "license": "MIT",
   "main": "dist/src/index.js",
@@ -34,7 +34,6 @@
     "fs-extra": "^7.0.1",
     "solpp": "^0.10.1",
     "glob": "^7.1.3",
-    "@nomiclabs/hardhat-docker": "^2.0.0"
   },
   "devDependencies": {
     "@types/chai": "^4.2.0",

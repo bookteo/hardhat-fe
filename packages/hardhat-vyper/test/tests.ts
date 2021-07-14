@@ -4,7 +4,7 @@ import { NomicLabsHardhatPluginError } from "hardhat/plugins";
 
 import { useEnvironment } from "./helpers";
 
-describe("Vyper plugin", async function () {
+describe("Fe plugin", async function () {
   describe("Successful compilation", async function () {
     useEnvironment("successful-compilation");
 

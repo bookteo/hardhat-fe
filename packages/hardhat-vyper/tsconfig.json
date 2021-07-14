@@ -8,8 +8,5 @@
     {
       "path": "../hardhat-core/src"
     },
-    {
-      "path": "../hardhat-docker"
-    }
   ]
 }

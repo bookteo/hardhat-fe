@@ -6,7 +6,6 @@ import path from "path";
 
 import { FeConfig } from "./types";
 
-const FE_BINARY = ""
 //const VYPER_DOCKER_REPOSITORY = "vyperlang/vyper";
 //const LAST_VYPER_VERSION_USED_FILENAME = "last-vyper-version-used.txt";
 //const VYPER_DOCKER_IMAGES_LAST_UPDATE_CHECK_FILE = "vyper-docker-updates.json";
@@ -26,15 +25,7 @@ export async function compile(
     tag: vyperVersion,
   };
 
-  await validateDockerIsInstalled();
 
-  const docker = await handleCommonErrors(HardhatDocker.create());
-
-  await handleCommonErrors(
-    pullImageIfNecessary(docker, dockerImage, paths.cache)
-  );
-
-  const files = await getVyperSources(paths);
 
   let someContractFailed = false;
 
@@ -161,95 +152,7 @@ async function saveLastVyperVersionUsed(
   return fsExtra.writeFile(filePath, version, "utf8");
 }
 
-async function validateDockerIsInstalled() {
-  if (!(await HardhatDocker.isInstalled())) {
-    throw new NomicLabsHardhatPluginError(
-      "@nomiclabs/hardhat-vyper",
-      `Docker Desktop is not installed.
-Please install it by following the instructions on https://www.docker.com/get-started`
-    );
-  }
-}
 
-async function pullImageIfNecessary(
-  docker: HardhatDocker,
-  image: Image,
-  cachePath: string
-) {
-  if (!(await docker.hasPulledImage(image))) {
-    console.log(
-      `Pulling Docker image ${HardhatDocker.imageToRepoTag(image)}...`
-    );
-
-    await docker.pullImage(image);
-
-    console.log(`Image pulled`);
-  } else {
-    await checkForImageUpdates(docker, image, cachePath);
-  }
-}
-
-async function checkForImageUpdates(
-  docker: HardhatDocker,
-  image: Image,
-  cachePath: string
-) {
-  if (!(await shouldCheckForUpdates(image, cachePath))) {
-    return;
-  }
-
-  if (!(await docker.isImageUpToDate(image))) {
-    console.log(
-      `Updating Docker image ${HardhatDocker.imageToRepoTag(image)}...`
-    );
-
-    await docker.pullImage(image);
-
-    console.log(`Image updated`);
-  }
-
-  await saveLastUpdateCheckDate(image, cachePath);
-}
-
-async function shouldCheckForUpdates(image: Image, cachePath: string) {
-  const lastDate = await getLastUpdateCheckDate(image, cachePath);
-  if (lastDate === undefined) {
-    return true;
-  }
-
-  return lastDate + CHECK_UPDATES_INTERVAL < +new Date();
-}
-
-async function getLastUpdateCheckDate(
-  image: Image,
-  cachePath: string
-): Promise<number | undefined> {
-  const file = path.join(cachePath, VYPER_DOCKER_IMAGES_LAST_UPDATE_CHECK_FILE);
-  if (!(await fsExtra.pathExists(file))) {
-    return undefined;
-  }
-
-  const updates = await fsExtra.readJSON(file);
-  return updates[HardhatDocker.imageToRepoTag(image)];
-}
-
-async function saveLastUpdateCheckDate(image: Image, cachePath: string) {
-  let updates: { [repoTag: string]: number };
-
-  const file = path.join(cachePath, VYPER_DOCKER_IMAGES_LAST_UPDATE_CHECK_FILE);
-  if (!(await fsExtra.pathExists(file))) {
-    updates = {};
-  } else {
-    updates = await fsExtra.readJSON(file);
-  }
-
-  updates[HardhatDocker.imageToRepoTag(image)] = +new Date();
-
-  await fsExtra.ensureDir(path.dirname(file));
-  await fsExtra.writeJSON(file, updates, {
-    spaces: 2,
-  });
-}
 
 async function compileWithDocker(
   filePath: string,
@@ -271,48 +174,3 @@ async function compileWithDocker(
   );
 }
 
-async function handleCommonErrors<T>(promise: Promise<T>): Promise<T> {
-  try {
-    return await promise;
-  } catch (error) {
-    if (
-      error instanceof DockerNotRunningError ||
-      error instanceof DockerBadGatewayError
-    ) {
-      throw new NomicLabsHardhatPluginError(
-        "@nomiclabs/hardhat-vyper",
-        "Docker Desktop is not running.\nPlease open it and wait until it finishes booting.",
-        error
-      );
-    }
-
-    if (error instanceof DockerHubConnectionError) {
-      throw new NomicLabsHardhatPluginError(
-        "@nomiclabs/hardhat-vyper",
-        `Error connecting to Docker Hub.
-Please check your internet connection.`,
-        error
-      );
-    }
-
-    if (error instanceof DockerServerError) {
-      throw new NomicLabsHardhatPluginError(
-        "@nomiclabs/hardhat-vyper",
-        "Docker error",
-        error
-      );
-    }
-
-    if (error instanceof ImageDoesntExistError) {
-      throw new NomicLabsHardhatPluginError(
-        "@nomiclabs/hardhat-vyper",
-        `Docker image ${HardhatDocker.imageToRepoTag(
-          error.image
-        )} doesn't exist.
-Make sure you chose a valid Vyper version.`
-      );
-    }
-
-    throw error;
-  }
-}

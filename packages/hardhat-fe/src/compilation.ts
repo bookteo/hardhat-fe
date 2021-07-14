@@ -6,10 +6,11 @@ import path from "path";
 
 import { FeConfig } from "./types";
 
-const VYPER_DOCKER_REPOSITORY = "vyperlang/vyper";
-const LAST_VYPER_VERSION_USED_FILENAME = "last-vyper-version-used.txt";
-const VYPER_DOCKER_IMAGES_LAST_UPDATE_CHECK_FILE = "vyper-docker-updates.json";
-const CHECK_UPDATES_INTERVAL = 3600000;
+const FE_BINARY = ""
+//const VYPER_DOCKER_REPOSITORY = "vyperlang/vyper";
+//const LAST_VYPER_VERSION_USED_FILENAME = "last-vyper-version-used.txt";
+//const VYPER_DOCKER_IMAGES_LAST_UPDATE_CHECK_FILE = "vyper-docker-updates.json";
+//const CHECK_UPDATES_INTERVAL = 3600000;
 
 const ARTIFACT_FORMAT_VERSION = "hh-vyper-artifact-1";
 

@@ -1,3 +1,3 @@
-export interface VyperConfig {
+export interface FeConfig {
   version: string;
 }

@@ -4,7 +4,7 @@ import { Artifact, Artifacts, ProjectPathsConfig } from "hardhat/types";
 import { localPathToSourceName } from "hardhat/utils/source-names";
 import path from "path";
 
-import { VyperConfig } from "./types";
+import { FeConfig } from "./types";
 
 const VYPER_DOCKER_REPOSITORY = "vyperlang/vyper";
 const LAST_VYPER_VERSION_USED_FILENAME = "last-vyper-version-used.txt";
@@ -14,11 +14,11 @@ const CHECK_UPDATES_INTERVAL = 3600000;
 const ARTIFACT_FORMAT_VERSION = "hh-vyper-artifact-1";
 
 export async function compile(
-  vyperConfig: VyperConfig,
+  feConfig: FeConfig,
   paths: ProjectPathsConfig,
   artifacts: Artifacts
 ) {
-  const vyperVersion = vyperConfig.version;
+  const feVersion = feConfig.version;
 
   const dockerImage = {
     repository: VYPER_DOCKER_REPOSITORY,

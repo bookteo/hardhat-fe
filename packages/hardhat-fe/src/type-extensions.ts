@@ -1,13 +1,13 @@
 import "hardhat/types/config";
 
-import { VyperConfig } from "./types";
+import { FeConfig } from "./types";
 
 declare module "hardhat/types/config" {
   interface HardhatUserConfig {
-    vyper?: Partial<VyperConfig>;
+    fe?: Partial<FeConfig>;
   }
 
   interface HardhatConfig {
-    vyper: VyperConfig;
+    fe: FeConfig;
   }
 }
